@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/providers/auth-provider';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,17 +12,23 @@ export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const { login } = useAuth();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setLoading(true);
+        
         try {
-            await signInWithEmailAndPassword(auth, email, password);
+            await login(email, password);
             router.push('/dashboard');
         } catch (err: any) {
             console.error(err);
-            setError('Invalid email or password');
+            setError(err.message || 'Invalid email or password');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -57,7 +62,9 @@ export default function LoginPage() {
                             />
                         </div>
                         {error && <p className="text-sm text-red-500">{error}</p>}
-                        <Button type="submit" className="w-full">Sign In</Button>
+                        <Button type="submit" className="w-full" disabled={loading}>
+                            {loading ? 'Signing in...' : 'Sign In'}
+                        </Button>
                     </form>
                 </CardContent>
             </Card>

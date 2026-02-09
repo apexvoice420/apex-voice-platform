@@ -1,14 +1,33 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '@/components/providers/auth-provider';
 import { DndContext, DragOverlay, useDraggable, useDroppable, DragEndEvent } from '@dnd-kit/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Opportunity, Pipeline, PipelineStage } from '@/types/schema';
 
-// Styles for DnD
+interface PipelineStage {
+    id: string;
+    name: string;
+    order: number;
+}
+
+interface Pipeline {
+    id: string;
+    name: string;
+    stages: PipelineStage[];
+}
+
+interface Opportunity {
+    id: string;
+    title: string;
+    value: number;
+    stageId: string;
+    clientId: string;
+    pipelineId: string;
+    contactId: string;
+    status: 'open' | 'won' | 'lost';
+}
+
 const draggablestyle = {
     cursor: 'grab',
 };
@@ -56,13 +75,10 @@ export default function PipelinesPage() {
     useEffect(() => {
         if (!clientId) return;
 
-        // Mock default pipeline if none exists in DB for demo
-        // In real app, fetch from 'pipelines' collection
+        // Default pipeline for demo
         const defaultPipeline: Pipeline = {
-            clientId,
+            id: '1',
             name: "Default Pipeline",
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
             stages: [
                 { id: "new_lead", name: "New Lead", order: 1 },
                 { id: "contacted", name: "Contacted", order: 2 },
@@ -73,24 +89,12 @@ export default function PipelinesPage() {
         };
         setPipeline(defaultPipeline);
 
-        // Fetch Opportunities
-        const fetchOpps = async () => {
-            // Mock data for demo if DB empty
-            setOpportunities([
-                { id: '1', title: 'Acme Corp Deal', value: 5000, stageId: 'new_lead', clientId, pipelineId: '1', contactId: 'c1', status: 'open', createdAt: Date.now(), updatedAt: Date.now() },
-                { id: '2', title: 'Global Tech', value: 12000, stageId: 'contacted', clientId, pipelineId: '1', contactId: 'c2', status: 'open', createdAt: Date.now(), updatedAt: Date.now() },
-                { id: '3', title: 'Small Biz bundle', value: 800, stageId: 'won', clientId, pipelineId: '1', contactId: 'c3', status: 'won', createdAt: Date.now(), updatedAt: Date.now() },
-            ]);
-
-            // Real code would use:
-            /*
-            const q = query(collection(db, 'opportunities'), where('clientId', '==', clientId));
-            const snap = await getDocs(q);
-            // ...
-            */
-        };
-        fetchOpps();
-
+        // Mock data for demo
+        setOpportunities([
+            { id: '1', title: 'Acme Corp Deal', value: 5000, stageId: 'new_lead', clientId, pipelineId: '1', contactId: 'c1', status: 'open' },
+            { id: '2', title: 'Global Tech', value: 12000, stageId: 'contacted', clientId, pipelineId: '1', contactId: 'c2', status: 'open' },
+            { id: '3', title: 'Small Biz bundle', value: 800, stageId: 'won', clientId, pipelineId: '1', contactId: 'c3', status: 'won' },
+        ]);
     }, [clientId]);
 
     const handleDragEnd = async (event: DragEndEvent) => {
@@ -98,17 +102,12 @@ export default function PipelinesPage() {
 
         if (over && active.id !== over.id) {
             const newStageId = over.id as string;
-            // Optimistic Update
             setOpportunities((items) => items.map(item =>
                 item.id === active.id ? { ...item, stageId: newStageId } : item
             ));
-
-            // TODO: Update in Firestore
-            /*
-            if (active.id) {
-                await updateDoc(doc(db, 'opportunities', active.id as string), { stageId: newStageId });
-            }
-            */
+            
+            // TODO: Update via API
+            // await fetch(`/api/opportunities/${active.id}`, { method: 'PATCH', body: JSON.stringify({ stageId: newStageId }) });
         }
         setActiveId(null);
     };
@@ -139,7 +138,6 @@ export default function PipelinesPage() {
                         {activeId ? (
                             <Card className="cursor-grabbing shadow-lg opacity-80 rotate-2">
                                 <CardContent className="p-4">
-                                    {/* Simple overlay content, fetch full logic if needed */}
                                     Dragging...
                                 </CardContent>
                             </Card>

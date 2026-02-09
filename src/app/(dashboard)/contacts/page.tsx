@@ -1,15 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { useAuth } from '@/components/providers/auth-provider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Search } from 'lucide-react';
-import { Contact } from '@/types/schema';
+
+interface Contact {
+    id: string;
+    firstName: string;
+    lastName?: string;
+    phone?: string;
+    email?: string;
+    tags: string[];
+    createdAt: string;
+}
 
 export default function ContactsPage() {
     const { clientId } = useAuth();
@@ -21,17 +28,14 @@ export default function ContactsPage() {
 
         const fetchContacts = async () => {
             try {
-                // Determine collection path. Assuming root 'contacts' collection with clientId field
-                // Note: Index might be required for this query
-                const q = query(
-                    collection(db, 'contacts'),
-                    where('clientId', '==', clientId),
-                    orderBy('createdAt', 'desc'),
-                    limit(50)
-                );
-                const snapshot = await getDocs(q);
-                const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contact));
-                setContacts(data);
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/api/contacts?clientId=${clientId}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setContacts(data);
+                }
             } catch (error) {
                 console.error("Error fetching contacts:", error);
             } finally {

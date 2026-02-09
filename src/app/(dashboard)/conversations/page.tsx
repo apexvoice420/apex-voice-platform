@@ -1,15 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/components/providers/auth-provider';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Send, Phone, Video, MoreVertical } from 'lucide-react';
-import { Conversation, Message } from '@/types/schema';
 import { clsx } from 'clsx';
+
+interface Conversation {
+    id: string;
+    contactId: string;
+    lastMessageAt: string;
+    snippet: string;
+    status: 'open' | 'closed';
+}
+
+interface Message {
+    id: string;
+    conversationId: string;
+    content: string;
+    direction: 'inbound' | 'outbound';
+    createdAt: string;
+}
 
 export default function ConversationsPage() {
     const { clientId } = useAuth();
@@ -21,19 +34,22 @@ export default function ConversationsPage() {
     useEffect(() => {
         if (!clientId) return;
 
-        // Listen for conversations
-        const q = query(
-            collection(db, 'conversations'),
-            where('clientId', '==', clientId),
-            orderBy('lastMessageAt', 'desc')
-        );
+        const fetchConversations = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/api/conversations?clientId=${clientId}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setConversations(data);
+                }
+            } catch (error) {
+                console.error("Error fetching conversations:", error);
+            }
+        };
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const convs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Conversation));
-            setConversations(convs);
-        });
-
-        return () => unsubscribe();
+        fetchConversations();
     }, [clientId]);
 
     useEffect(() => {
@@ -42,39 +58,48 @@ export default function ConversationsPage() {
             return;
         }
 
-        // Listen for messages in selected conversation
-        // Assuming messages are subcollection or root collection with conversationId
-        const q = query(
-            collection(db, 'messages'),
-            where('conversationId', '==', selectedConversationId),
-            orderBy('createdAt', 'asc') // Oldest first
-        );
+        const fetchMessages = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/api/messages?conversationId=${selectedConversationId}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setMessages(data);
+                }
+            } catch (error) {
+                console.error("Error fetching messages:", error);
+            }
+        };
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-            setMessages(msgs);
-        });
-
-        return () => unsubscribe();
+        fetchMessages();
     }, [selectedConversationId]);
 
     const handleSendMessage = async () => {
         if (!newMessage.trim() || !selectedConversationId || !clientId) return;
 
         try {
-            await addDoc(collection(db, 'messages'), {
-                conversationId: selectedConversationId,
-                clientId,
-                content: newMessage,
-                channel: 'sms', // Default for now
-                direction: 'outbound',
-                status: 'sent',
-                createdAt: Date.now() // or serverTimestamp()
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}` 
+                },
+                body: JSON.stringify({
+                    conversationId: selectedConversationId,
+                    content: newMessage,
+                    channel: 'sms',
+                    direction: 'outbound',
+                }),
             });
-            setNewMessage('');
-
-            // Also update conversation lastMessageAt
-            // await updateDoc(...)
+            
+            if (res.ok) {
+                const msg = await res.json();
+                setMessages(prev => [...prev, msg]);
+                setNewMessage('');
+            }
         } catch (error) {
             console.error("Error sending message:", error);
         }
