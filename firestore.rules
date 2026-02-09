@@ -1,0 +1,89 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isSuperAdmin() {
+      return isAuthenticated() && request.auth.token.role == 'super_admin'; // Based on Custom Claim
+    }
+    
+    function isClientAdmin(clientId) {
+      return isAuthenticated() && request.auth.token.role == 'client_admin' && request.auth.token.clientId == clientId;
+    }
+    
+    function isClientUser(clientId) {
+      return isAuthenticated() && request.auth.token.clientId == clientId;
+    }
+
+    // Clients Collection
+    match /clients/{clientId} {
+      allow read: if isSuperAdmin() || isClientUser(clientId);
+      allow write: if isSuperAdmin(); // Only super admin can create/edit clients
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin() || isClientAdmin(resource.data.clientId));
+      allow write: if isSuperAdmin(); // Strict control on user creation/updates via Admin SDK/Functions
+    }
+
+    // Contacts
+    match /contacts/{contactId} {
+      allow read, write: if isClientUser(resource.data.clientId);
+      allow create: if isClientUser(request.resource.data.clientId);
+    }
+
+    // Pipelines
+    match /pipelines/{pipelineId} {
+      allow read, write: if isClientUser(resource.data.clientId);
+      allow create: if isClientUser(request.resource.data.clientId);
+    }
+    
+    // Opportunities
+    match /opportunities/{opportunityId} {
+       allow read, write: if isClientUser(resource.data.clientId);
+       allow create: if isClientUser(request.resource.data.clientId);
+    }
+
+    // Conversations & Messages
+    match /conversations/{conversationId} {
+      allow read, write: if isClientUser(resource.data.clientId);
+      allow create: if isClientUser(request.resource.data.clientId);
+    }
+    
+    match /messages/{messageId} {
+       // Assuming messages have a 'clientId' field denormalized, or we check parent conversation
+       // For simplicity, let's assume they have clientId or we rely on conversation check if subcollection
+       // Using root collection as per plan:
+       allow read, write: if isClientUser(resource.data.clientId);
+       allow create: if isClientUser(request.resource.data.clientId);
+    }
+
+    // Workflows
+    match /workflows/{workflowId} {
+       allow read: if isClientUser(resource.data.clientId);
+       allow write: if isClientAdmin(resource.data.clientId); // Only admins manage workflows
+       allow create: if isClientAdmin(request.resource.data.clientId);
+    }
+    
+    // Agents
+     match /agents/{agentId} {
+       allow read: if isClientUser(resource.data.clientId);
+       allow write: if isClientAdmin(resource.data.clientId);
+       allow create: if isClientAdmin(request.resource.data.clientId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false; // Deny all others by default
+    }
+  }
+}
