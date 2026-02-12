@@ -6,6 +6,142 @@ datasource db {
   provider = "postgresql"
 }
 
+model Client {
+  id            String         @id @default(cuid())
+  name          String
+  domain        String?
+  vapiApiKey    String?
+  settings      Json           @default("{}")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+  agents        Agent[]
+  contacts      Contact[]
+  conversations Conversation[]
+  opportunities Opportunity[]
+  pipelines     Pipeline[]
+  users         User[]
+  workflows     Workflow[]
+}
+
+model User {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  password    String
+  displayName String
+  photoURL    String?
+  role        Role      @default(user)
+  clientId    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  client      Client    @relation(fields: [clientId], references: [id])
+}
+
+model Contact {
+  id              String         @id @default(cuid())
+  clientId        String
+  firstName       String
+  lastName        String?
+  email           String?
+  phone           String?
+  tags            String[]       @default([])
+  customFields    Json           @default("{}")
+  pipelineStageId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+  client          Client         @relation(fields: [clientId], references: [id])
+  conversations   Conversation[]
+  opportunities   Opportunity[]
+}
+
+model Pipeline {
+  id            String        @id @default(cuid())
+  clientId      String
+  name          String
+  stages        Json          @default("[]")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+  opportunities Opportunity[]
+  client        Client        @relation(fields: [clientId], references: [id])
+}
+
+model Opportunity {
+  id         String            @id @default(cuid())
+  clientId   String
+  pipelineId String
+  stageId    String
+  contactId  String
+  value      Float             @default(0)
+  status     OpportunityStatus @default(open)
+  title      String
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  deletedAt  DateTime?
+  client     Client            @relation(fields: [clientId], references: [id])
+  contact    Contact           @relation(fields: [contactId], references: [id])
+  pipeline   Pipeline          @relation(fields: [pipelineId], references: [id])
+}
+
+model Conversation {
+  id            String             @id @default(cuid())
+  clientId      String
+  contactId     String
+  lastMessageAt DateTime           @default(now())
+  snippet       String             @default("")
+  status        ConversationStatus @default(open)
+  unreadCount   Int                @default(0)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  deletedAt     DateTime?
+  client        Client             @relation(fields: [clientId], references: [id])
+  contact       Contact            @relation(fields: [contactId], references: [id])
+  messages      Message[]
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  channel        ChannelType
+  direction      MessageDirection
+  content        String
+  status         MessageStatus    @default(sent)
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+  conversation   Conversation     @relation(fields: [conversationId], references: [id])
+}
+
+model Agent {
+  id            String    @id @default(cuid())
+  clientId      String
+  vapiAgentId   String
+  name          String
+  phoneNumberId String?
+  config        Json      @default("{}")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  client        Client    @relation(fields: [clientId], references: [id])
+}
+
+model Workflow {
+  id        String    @id @default(cuid())
+  clientId  String
+  name      String
+  isActive  Boolean   @default(false)
+  trigger   Json      @default("{}")
+  steps     Json      @default("[]")
+  version   Int       @default(1)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  client    Client    @relation(fields: [clientId], references: [id])
+}
+
 enum Role {
   super_admin
   client_admin
@@ -39,144 +175,4 @@ enum MessageStatus {
   delivered
   read
   failed
-}
-
-model Client {
-  id         String   @id @default(cuid())
-  name       String
-  domain     String?
-  vapiApiKey String?
-  settings   Json     @default("{}")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  deletedAt  DateTime?
-
-  users         User[]
-  contacts      Contact[]
-  pipelines     Pipeline[]
-  opportunities Opportunity[]
-  conversations Conversation[]
-  agents        Agent[]
-  workflows     Workflow[]
-}
-
-model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  password    String
-  displayName String
-  photoURL    String?
-  role        Role     @default(user)
-  clientId    String
-  client      Client   @relation(fields: [clientId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
-}
-
-model Contact {
-  id              String   @id @default(cuid())
-  clientId        String
-  client          Client   @relation(fields: [clientId], references: [id])
-  firstName       String
-  lastName        String?
-  email           String?
-  phone           String?
-  tags            String[] @default([])
-  customFields    Json     @default("{}")
-  pipelineStageId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
-
-  opportunities Opportunity[]
-  conversations Conversation[]
-}
-
-model Pipeline {
-  id        String   @id @default(cuid())
-  clientId  String
-  client    Client   @relation(fields: [clientId], references: [id])
-  name      String
-  stages    Json     @default("[]") // PipelineStage[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
-
-  opportunities Opportunity[]
-}
-
-model Opportunity {
-  id         String            @id @default(cuid())
-  clientId   String
-  client     Client            @relation(fields: [clientId], references: [id])
-  pipelineId String
-  pipeline   Pipeline          @relation(fields: [pipelineId], references: [id])
-  stageId    String
-  contactId  String
-  contact    Contact           @relation(fields: [contactId], references: [id])
-  value      Float             @default(0)
-  status     OpportunityStatus @default(open)
-  title      String
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  deletedAt  DateTime?
-}
-
-model Conversation {
-  id            String             @id @default(cuid())
-  clientId      String
-  client        Client             @relation(fields: [clientId], references: [id])
-  contactId     String
-  contact       Contact            @relation(fields: [contactId], references: [id])
-  lastMessageAt DateTime           @default(now())
-  snippet       String             @default("")
-  status        ConversationStatus @default(open)
-  unreadCount   Int                @default(0)
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  deletedAt     DateTime?
-
-  messages Message[]
-}
-
-model Message {
-  id             String           @id @default(cuid())
-  conversationId String
-  conversation   Conversation     @relation(fields: [conversationId], references: [id])
-  channel        ChannelType
-  direction      MessageDirection
-  content        String
-  status         MessageStatus    @default(sent)
-  metadata       Json             @default("{}")
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  deletedAt      DateTime?
-}
-
-model Agent {
-  id            String   @id @default(cuid())
-  clientId      String
-  client        Client   @relation(fields: [clientId], references: [id])
-  vapiAgentId   String
-  name          String
-  phoneNumberId String?
-  config        Json     @default("{}")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
-}
-
-model Workflow {
-  id        String   @id @default(cuid())
-  clientId  String
-  client    Client   @relation(fields: [clientId], references: [id])
-  name      String
-  isActive  Boolean  @default(false)
-  trigger   Json     @default("{}")
-  steps     Json     @default("[]")
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
 }
