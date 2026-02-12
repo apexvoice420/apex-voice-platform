@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
+// Force dynamic rendering - don't pre-render at build time
+export const dynamic = 'force-dynamic';
+
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 
 export async function POST(request: NextRequest) {
