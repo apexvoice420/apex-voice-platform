@@ -336,6 +336,121 @@ app.get('/api/agents', authMiddleware, async (req, res) => {
     }
 });
 
+// ============ VAPI SYNC - Fetch all VAPI assistants ============
+app.get('/api/vapi/assistants', authMiddleware, async (req, res) => {
+    try {
+        if (!VAPI_API_KEY) {
+            return res.status(400).json({ error: 'VAPI_API_KEY not configured' });
+        }
+
+        const response = await fetch('https://api.vapi.ai/assistant', {
+            headers: {
+                'Authorization': `Bearer ${VAPI_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            return res.status(400).json({ error: 'Failed to fetch VAPI assistants', details: error });
+        }
+
+        const assistants = await response.json();
+        
+        // Transform VAPI data for frontend
+        const formattedAssistants = assistants.map(assistant => ({
+            id: assistant.id,
+            name: assistant.name,
+            voice: assistant.voice?.voiceId || 'default',
+            voiceProvider: assistant.voice?.provider || '11labs',
+            model: assistant.model?.model || 'gpt-4o',
+            firstMessage: assistant.firstMessage,
+            status: 'active',
+            createdAt: assistant.createdAt,
+            updatedAt: assistant.updatedAt
+        }));
+
+        res.json({ assistants: formattedAssistants });
+    } catch (error) {
+        console.error('VAPI fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch VAPI assistants' });
+    }
+});
+
+// Sync VAPI assistants to local database
+app.post('/api/agents/sync-vapi', authMiddleware, async (req, res) => {
+    try {
+        if (!VAPI_API_KEY) {
+            return res.status(400).json({ error: 'VAPI_API_KEY not configured' });
+        }
+
+        const response = await fetch('https://api.vapi.ai/assistant', {
+            headers: {
+                'Authorization': `Bearer ${VAPI_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            return res.status(400).json({ error: 'Failed to fetch from VAPI' });
+        }
+
+        const vapiAssistants = await response.json();
+        const syncedAgents = [];
+
+        for (const vapiAgent of vapiAssistants) {
+            // Check if agent already exists
+            let agent = await prisma.agent.findFirst({
+                where: { 
+                    vapiAgentId: vapiAgent.id,
+                    tenantId: req.tenantId 
+                }
+            });
+
+            if (agent) {
+                // Update existing
+                agent = await prisma.agent.update({
+                    where: { id: agent.id },
+                    data: {
+                        name: vapiAgent.name,
+                        config: JSON.stringify({
+                            voice: vapiAgent.voice,
+                            model: vapiAgent.model,
+                            firstMessage: vapiAgent.firstMessage
+                        }),
+                        updatedAt: new Date()
+                    }
+                });
+            } else {
+                // Create new
+                agent = await prisma.agent.create({
+                    data: {
+                        name: vapiAgent.name,
+                        vapiAgentId: vapiAgent.id,
+                        status: 'ACTIVE',
+                        config: JSON.stringify({
+                            voice: vapiAgent.voice,
+                            model: vapiAgent.model,
+                            firstMessage: vapiAgent.firstMessage
+                        }),
+                        tenantId: req.tenantId
+                    }
+                });
+            }
+            syncedAgents.push(agent);
+        }
+
+        res.json({ 
+            success: true, 
+            synced: syncedAgents.length,
+            agents: syncedAgents 
+        });
+    } catch (error) {
+        console.error('VAPI sync error:', error);
+        res.status(500).json({ error: 'Failed to sync VAPI agents' });
+    }
+});
+
 app.post('/api/agents', authMiddleware, async (req, res) => {
     try {
         const agent = await prisma.agent.create({
