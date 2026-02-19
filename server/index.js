@@ -137,6 +137,32 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
     }
 });
 
+// Admin password reset (protected by admin key)
+app.post('/api/admin/reset-password', async (req, res) => {
+    const { email, newPassword, adminKey } = req.body;
+    
+    // Simple admin key check
+    if (adminKey !== 'apex-admin-reset-2026') {
+        return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    if (!email || !newPassword) {
+        return res.status(400).json({ error: 'Email and newPassword required' });
+    }
+    
+    try {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const user = await prisma.user.update({
+            where: { email },
+            data: { password: hashedPassword }
+        });
+        res.json({ success: true, message: `Password updated for ${email}` });
+    } catch (error) {
+        console.error('Password reset error:', error);
+        res.status(500).json({ error: 'Failed to reset password' });
+    }
+});
+
 // ============ LEADS ENDPOINTS ============
 app.get('/api/leads', authMiddleware, async (req, res) => {
     try {
