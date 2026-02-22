@@ -1,6 +1,5 @@
 export const dynamic = 'force-dynamic';
 
-import { getLeads, createLead } from "@/app/actions/leads";
 import { Button } from "@/components/ui/button";
 import {
     Table,
@@ -10,19 +9,25 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-    DialogFooter
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Plus, Search } from "lucide-react";
+import { Search, ExternalLink, Phone, Mail, Globe, Star } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://apex-voice-crm-production.up.railway.app';
+
+async function getLeads() {
+    try {
+        const res = await fetch(`${API_URL}/api/leads?limit=100`, {
+            cache: 'no-store'
+        });
+        if (!res.ok) return [];
+        return res.json();
+    } catch (e) {
+        console.error('Failed to fetch leads:', e);
+        return [];
+    }
+}
 
 export default async function LeadsPage() {
     const leads = await getLeads();
@@ -30,44 +35,12 @@ export default async function LeadsPage() {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold tracking-tight">Leads & CRM</h2>
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" /> Add Lead
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Add New Lead</DialogTitle>
-                        </DialogHeader>
-                        <form action={createLead}>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="firstName">First Name</Label>
-                                        <Input id="firstName" name="firstName" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="lastName">Last Name</Label>
-                                        <Input id="lastName" name="lastName" />
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="email">Email</Label>
-                                    <Input id="email" name="email" type="email" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="phone">Phone</Label>
-                                    <Input id="phone" name="phone" />
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button type="submit">Save Lead</Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight">Leads</h2>
+                    <p className="text-muted-foreground">
+                        {leads.length} leads from Google Maps scraper
+                    </p>
+                </div>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -85,36 +58,80 @@ export default async function LeadsPage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Status</TableHead>
+                            <TableHead>Business</TableHead>
                             <TableHead>Phone</TableHead>
-                            <TableHead>Created</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Location</TableHead>
+                            <TableHead>Rating</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {leads.map((lead) => (
-                            <TableRow key={lead.id}>
-                                <TableCell className="font-medium">
-                                    <Link href={`/dashboard/leads/${lead.id}`} className="hover:underline">
-                                        {lead.firstName} {lead.lastName}
+                        {leads.map((lead: any) => (
+                            <TableRow key={lead.id} className="cursor-pointer hover:bg-muted/50">
+                                <TableCell>
+                                    <Link href={`/dashboard/leads/${lead.id}`} className="block">
+                                        <div className="font-medium">{lead.business_name}</div>
+                                        {lead.website && (
+                                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                <Globe className="h-3 w-3" />
+                                                {new URL(lead.website).hostname}
+                                            </div>
+                                        )}
                                     </Link>
-                                    <div className="text-xs text-muted-foreground">{lead.email}</div>
                                 </TableCell>
                                 <TableCell>
-                                    <Badge variant="secondary">{lead.status}</Badge>
+                                    {lead.phone ? (
+                                        <a href={`tel:${lead.phone}`} className="flex items-center gap-1 hover:underline">
+                                            <Phone className="h-3 w-3" />
+                                            {lead.phone}
+                                        </a>
+                                    ) : '-'}
                                 </TableCell>
-                                <TableCell>{lead.phone}</TableCell>
-                                <TableCell>{lead.createdAt.toLocaleDateString()}</TableCell>
+                                <TableCell>
+                                    {lead.email ? (
+                                        <a href={`mailto:${lead.email}`} className="flex items-center gap-1 text-blue-600 hover:underline">
+                                            <Mail className="h-3 w-3" />
+                                            {lead.email}
+                                        </a>
+                                    ) : (
+                                        <span className="text-muted-foreground">-</span>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    <div>{lead.city}, {lead.state}</div>
+                                    {lead.industry && (
+                                        <div className="text-xs text-muted-foreground capitalize">{lead.industry}</div>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    {lead.rating ? (
+                                        <div className="flex items-center gap-1">
+                                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                            <span>{lead.rating}</span>
+                                            {lead.reviews && (
+                                                <span className="text-xs text-muted-foreground">({lead.reviews})</span>
+                                            )}
+                                        </div>
+                                    ) : '-'}
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant={lead.status === 'New Lead' ? 'default' : 'secondary'}>
+                                        {lead.status || 'New'}
+                                    </Badge>
+                                </TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="sm">View</Button>
+                                    <Link href={`/dashboard/leads/${lead.id}`}>
+                                        <Button variant="ghost" size="sm">View</Button>
+                                    </Link>
                                 </TableCell>
                             </TableRow>
                         ))}
                         {leads.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
-                                    No results.
+                                <TableCell colSpan={7} className="h-24 text-center">
+                                    No leads yet. Run the scraper to add leads.
                                 </TableCell>
                             </TableRow>
                         )}
